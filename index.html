@@ -278,8 +278,8 @@
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script defer>
         const itemInput = document.getElementById('itemInput');
         const listContainer = document.getElementById('listContainer');
         const totalCountEl = document.getElementById('totalCount');
@@ -290,7 +290,18 @@
         // Supabase 초기화
         const SUPABASE_URL = 'https://ifiiqljuevjtxolcvoar.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_pk3c5FALXPa6dUquax4iRA_zOLlBIi3';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let supabase;
+
+        // Supabase가 로드될 때까지 대기
+        function initSupabase() {
+            if (!window.supabase) {
+                setTimeout(initSupabase, 100);
+                return;
+            }
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            loadItems();
+            form.addEventListener('submit', handleAddItem);
+        }
 
         let items = [];
         let isLoading = true;
@@ -315,11 +326,8 @@
             }
         }
 
-        // 초기 렌더링
-        loadItems();
-
-        // 폼 제출 처리
-        form.addEventListener('submit', handleAddItem);
+        // Supabase 초기화 시작
+        initSupabase();
 
         async function handleAddItem(event) {
             event.preventDefault();
