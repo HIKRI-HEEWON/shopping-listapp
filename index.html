@@ -278,39 +278,47 @@
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-    <script defer>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // DOM 요소
         const itemInput = document.getElementById('itemInput');
         const listContainer = document.getElementById('listContainer');
         const totalCountEl = document.getElementById('totalCount');
         const checkedCountEl = document.getElementById('checkedCount');
         const remainCountEl = document.getElementById('remainCount');
-        const form = document.querySelector('form');
 
-        // Supabase 초기화
-        const SUPABASE_URL = 'https://ifiiqljuevjtxolcvoar.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_pk3c5FALXPa6dUquax4iRA_zOLlBIi3';
-        let supabase;
-
-        // Supabase가 로드될 때까지 대기
-        function initSupabase() {
-            if (!window.supabase) {
-                setTimeout(initSupabase, 100);
-                return;
-            }
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            loadItems();
-            form.addEventListener('submit', handleAddItem);
-        }
-
+        // 상태
         let items = [];
         let isLoading = true;
+        let sbClient = null;
+
+        // Supabase 설정
+        const SUPABASE_URL = 'https://ifiiqljuevjtxolcvoar.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_pk3c5FALXPa6dUquax4iRA_zOLlBIi3';
+
+        // 초기화
+        async function init() {
+            // Supabase 라이브러리 로드 대기
+            let retries = 0;
+            while (!window.supabase && retries < 50) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+            }
+
+            if (!window.supabase) {
+                console.error('Supabase 라이브러리 로드 실패');
+                return;
+            }
+
+            sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            await loadItems();
+        }
 
         // 초기 데이터 로드
         async function loadItems() {
             try {
                 isLoading = true;
-                const { data, error } = await supabase
+                const { data, error } = await sbClient
                     .from('shopping_items')
                     .select('*')
                     .order('created_at', { ascending: true });
@@ -320,26 +328,24 @@
                 renderList();
             } catch (error) {
                 console.error('데이터 로드 실패:', error);
-                alert('데이터를 불러올 수 없습니다.');
             } finally {
                 isLoading = false;
             }
         }
 
-        // Supabase 초기화 시작
-        initSupabase();
-
+        // 아이템 추가
         async function handleAddItem(event) {
             event.preventDefault();
             const text = itemInput.value.trim();
 
-            if (!text || isLoading) {
+            if (!text || isLoading || !sbClient) {
                 itemInput.focus();
                 return;
             }
 
             try {
-                const { data, error } = await supabase
+                isLoading = true;
+                const { data, error } = await sbClient
                     .from('shopping_items')
                     .insert([{ text: text, checked: false }])
                     .select();
@@ -354,13 +360,16 @@
                 }
             } catch (error) {
                 console.error('아이템 추가 실패:', error);
-                alert('아이템을 추가할 수 없습니다.');
+            } finally {
+                isLoading = false;
             }
         }
 
+        // 아이템 삭제
         async function deleteItem(id) {
             try {
-                const { error } = await supabase
+                isLoading = true;
+                const { error } = await sbClient
                     .from('shopping_items')
                     .delete()
                     .eq('id', id);
@@ -371,16 +380,19 @@
                 renderList();
             } catch (error) {
                 console.error('아이템 삭제 실패:', error);
-                alert('아이템을 삭제할 수 없습니다.');
+            } finally {
+                isLoading = false;
             }
         }
 
+        // 체크 상태 변경
         async function toggleCheck(id) {
             const item = items.find(i => i.id === id);
             if (!item) return;
 
             try {
-                const { error } = await supabase
+                isLoading = true;
+                const { error } = await sbClient
                     .from('shopping_items')
                     .update({ checked: !item.checked })
                     .eq('id', id);
@@ -391,10 +403,12 @@
                 renderList();
             } catch (error) {
                 console.error('아이템 업데이트 실패:', error);
-                alert('아이템을 업데이트할 수 없습니다.');
+            } finally {
+                isLoading = false;
             }
         }
 
+        // 리스트 렌더링
         function renderList() {
             if (items.length === 0) {
                 listContainer.innerHTML = '<div class="empty-message">아이템을 추가해보세요!</div>';
@@ -434,6 +448,7 @@
             updateStats();
         }
 
+        // 통계 업데이트
         function updateStats() {
             const total = items.length;
             const checked = items.filter(item => item.checked).length;
@@ -444,11 +459,15 @@
             remainCountEl.textContent = remain;
         }
 
+        // HTML 이스케이프
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
+
+        // 앱 시작
+        init();
     </script>
 </body>
 </html>
